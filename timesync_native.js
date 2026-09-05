@@ -22,7 +22,7 @@
 (function () {
     'use strict';
 
-    var VERSION     = '4.0.0';
+    var VERSION     = '4.0.1';
     var PLUGIN_NAME = 'TimeSyncer Native';
     var GIST_FILE   = 'lampa_timesync.json';
     var GIST_API    = 'https://api.github.com/gists';
@@ -381,6 +381,7 @@
             param: {
                 name: 'timesync_token',
                 type: 'input',
+                values: '',
                 placeholder: 'ghp_xxxxxxxxxxxxxxxxxxxx',
                 default: ''
             },
@@ -399,8 +400,7 @@
             component: 'timesync_native',
             param: {
                 name: 'timesync_sync_now',
-                type: 'trigger',
-                default: false
+                type: 'button'
             },
             field: {
                 name: 'Синхронизировать сейчас',
@@ -416,6 +416,7 @@
             param: {
                 name: 'timesync_gist_id',
                 type: 'input',
+                values: '',
                 placeholder: 'Заполняется автоматически',
                 default: ''
             },
