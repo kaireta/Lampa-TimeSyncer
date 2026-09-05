@@ -1,40 +1,32 @@
 ﻿/**
  * ================================================================
- *  Lampa TimeSyncer v4.0 (Native Sync) — синхронизация через GitHub Gist
+ *  Lampa TimeSyncer v4.1 (Full 2-Way Sync) — синхронизация через GitHub Gist
  * ================================================================
  *
- *  ПРИНЦИП РАБОТЫ:
- *  Скрипт НЕ вмешивается в плеер и НЕ перематывает видео сам!
- *  Он только синхронизирует встроенную базу просмотров Lampa
- *  (хранилище file_view) между всеми вашими устройствами через Gist.
- *
- *  Благодаря этому:
- *  - Lampa сама рисует полоски прогресса на постерах в каталоге
- *  - При запуске фильма Lampa сама показывает свой родной диалог:
- *    "Продолжить с XX:YY?" (если в настройках плеера стоит "Спрашивать")
- *  - Поддерживаются профили Lampa (для каждого профиля своя ветка)
- *  - 100% совместимо с Smart TV и мобильными устройствами (чистый ES5)
- *
- *  БЕСПЛАТНО НАВСЕГДА (лимит GitHub: 5000 запросов/час).
+ *  ИСПРАВЛЕНИЯ v4.1:
+ *  1. Двусторонняя синхронизация (2-Way Sync): при синхронизации данные
+ *     не только скачиваются, но и выгружают уже имеющуюся историю просмотров в Gist!
+ *  2. Слушатель плеера переключен на Lampa.Player.listener (вместо Lampa.Listener),
+ *     поэтому сохранение при выходе из плеера теперь РЕАЛЬНО срабатывает.
+ *  3. Умное слияние (Merge): если метки времени равны или отсутствуют,
+ *     выбирается максимальный прогресс просмотра, ничего не затирается.
+ *  4. Синхронизирует и file_view (полоски прогресса/секунды), и online_view (просмотренные серии).
+ *  5. Вызов Lampa.Timeline.read() без параметров вызывает событие state:changed,
+ *     чтобы полоски на экране сразу перерисовались без перезапуска страницы.
  * ================================================================
  */
 
 (function () {
     'use strict';
 
-    var VERSION     = '4.0.1';
+    var VERSION     = '4.1.0';
     var PLUGIN_NAME = 'TimeSyncer Native';
     var GIST_FILE   = 'lampa_timesync.json';
     var GIST_API    = 'https://api.github.com/gists';
 
-    var PUSH_INTERVAL = 30 * 1000;      // Проверка на отправку изменений каждые 30 сек
-    var PULL_INTERVAL = 5 * 60 * 1000;  // Фоновое обновление из облака каждые 5 минут
-
-    var pushTimer   = null;
-    var pullTimer   = null;
-    var needPush    = false;
-    var isSyncing   = false;
-    var gistCache   = {};
+    var SYNC_INTERVAL = 2 * 60 * 1000; // Автоматическая проверка каждые 2 минуты
+    var syncTimer     = null;
+    var isSyncing     = false;
 
     function log(msg) {
         console.log('[' + PLUGIN_NAME + ' v' + VERSION + ']', msg);
@@ -56,10 +48,6 @@
         return (cfg('gist_id') || '').trim();
     }
 
-    /**
-     * Получает точное имя ключа в Storage Lampa для текущего профиля.
-     * Использует родной метод Lampa.Timeline.filename() если доступен.
-     */
     function getFileViewKey() {
         try {
             if (Lampa.Timeline && typeof Lampa.Timeline.filename === 'function') {
@@ -78,72 +66,79 @@
         return 'file_view';
     }
 
-    function readLocalData() {
-        var key = getFileViewKey();
-        var data = Lampa.Storage.get(key, {});
-        if (typeof data === 'string') {
-            try { data = JSON.parse(data); } catch (e) { data = {}; }
+    function readStorage(key, def) {
+        var val = Lampa.Storage.get(key, def);
+        if (typeof val === 'string') {
+            try { val = JSON.parse(val); } catch (e) { val = def; }
         }
-        return data || {};
-    }
-
-    function writeLocalData(data) {
-        var key = getFileViewKey();
-        Lampa.Storage.set(key, data);
-
-        // Уведомляем интерфейс Lampa, чтобы обновились полосы прогресса на карточках
-        try {
-            if (Lampa.Timeline && typeof Lampa.Timeline.read === 'function') {
-                Lampa.Timeline.read(true);
-            }
-        } catch (e) {}
+        return val || def;
     }
 
     /**
-     * Слияние локальных и облачных отметок времени по принципу "побеждает самый свежий" (updated timestamp)
+     * Слияние двух таймлайнов:
+     * 1. Если есть метка updated — побеждает более поздняя.
+     * 2. Если метки равны или отсутствуют — побеждает наибольший процент просмотра.
      */
-    function mergeTimelines(base, incoming) {
-        var result = {};
+    function mergeTimelines(a, b) {
+        var res = {};
         var k;
+        a = a || {};
+        b = b || {};
 
-        base = base || {};
-        incoming = incoming || {};
-
-        for (k in base) {
-            if (Object.prototype.hasOwnProperty.call(base, k)) {
-                result[k] = base[k];
-            }
+        for (k in a) {
+            if (Object.prototype.hasOwnProperty.call(a, k)) res[k] = a[k];
         }
 
-        for (k in incoming) {
-            if (Object.prototype.hasOwnProperty.call(incoming, k)) {
-                var incItem = incoming[k];
-                var baseItem = result[k];
+        for (k in b) {
+            if (Object.prototype.hasOwnProperty.call(b, k)) {
+                var itemB = b[k];
+                var itemA = res[k];
 
-                if (!baseItem) {
-                    result[k] = incItem;
+                if (!itemA) {
+                    res[k] = itemB;
                 } else {
-                    var incTime = (incItem && incItem.updated) ? incItem.updated : 0;
-                    var baseTime = (baseItem && baseItem.updated) ? baseItem.updated : 0;
+                    var timeB = (itemB && itemB.updated) ? itemB.updated : 0;
+                    var timeA = (itemA && itemA.updated) ? itemA.updated : 0;
 
-                    if (incTime >= baseTime) {
-                        result[k] = incItem;
+                    if (timeB > timeA) {
+                        res[k] = itemB;
+                    } else if (timeB < timeA) {
+                        res[k] = itemA;
+                    } else {
+                        var pB = (itemB && typeof itemB.percent !== 'undefined') ? itemB.percent : (typeof itemB === 'number' ? itemB : 0);
+                        var pA = (itemA && typeof itemA.percent !== 'undefined') ? itemA.percent : (typeof itemA === 'number' ? itemA : 0);
+                        res[k] = (pB >= pA) ? itemB : itemA;
                     }
                 }
             }
         }
+        return res;
+    }
 
+    /**
+     * Слияние массивов (например, online_view с просмотренными сериями)
+     */
+    function mergeArrays(a, b) {
+        a = Array.isArray(a) ? a : [];
+        b = Array.isArray(b) ? b : [];
+        var set = {};
+        var result = [];
+        var i;
+
+        for (i = 0; i < a.length; i++) {
+            if (!set[a[i]]) { set[a[i]] = true; result.push(a[i]); }
+        }
+        for (i = 0; i < b.length; i++) {
+            if (!set[b[i]]) { set[b[i]] = true; result.push(b[i]); }
+        }
         return result;
     }
 
-    // ── HTTP-клиент GitHub API ─────────────────────────────────
+    // ── HTTP API Gist ──────────────────────────────────────────
 
     function request(method, url, body, callback) {
         var t = token();
-        if (!t) {
-            callback('No token');
-            return;
-        }
+        if (!t) { callback('No token'); return; }
 
         var xhr = new XMLHttpRequest();
         xhr.open(method, url, true);
@@ -159,7 +154,7 @@
                     var json = xhr.responseText ? JSON.parse(xhr.responseText) : {};
                     callback(null, json);
                 } catch (e) {
-                    callback('Parse error: ' + e.message);
+                    callback('JSON parse error: ' + e.message);
                 }
             } else {
                 callback('HTTP ' + xhr.status + ' ' + (xhr.statusText || ''));
@@ -227,91 +222,89 @@
                 var newId = created.id;
                 setCfg('gist_id', newId);
                 log('Gist успешно создан: ' + newId);
-                Lampa.Noty.show(PLUGIN_NAME + ': Gist создан');
                 callback(null, newId);
             });
         });
     }
 
-    // ── Основные операции синхронизации ────────────────────────
+    // ── Полная двусторонняя синхронизация (2-Way Sync) ──────────
 
-    /**
-     * PULL: забираем данные из Gist в локальный Storage Lampa
-     */
-    function syncPull(silent) {
+    function fullSync(silent) {
         if (!token() || isSyncing) return;
         isSyncing = true;
 
         ensureGist(function (err, id) {
             if (err) {
                 isSyncing = false;
-                log('Pull error (ensureGist): ' + err);
+                log('Sync error (ensureGist): ' + err);
+                if (!silent) Lampa.Noty.show(PLUGIN_NAME + ': ошибка связи');
                 return;
             }
 
             gistRead(id, function (readErr, cloudStore) {
-                isSyncing = false;
                 if (readErr) {
-                    log('Pull error (read): ' + readErr);
+                    isSyncing = false;
+                    log('Sync error (read): ' + readErr);
+                    if (!silent) Lampa.Noty.show(PLUGIN_NAME + ': ошибка чтения Gist');
                     return;
                 }
 
-                gistCache = cloudStore || {};
+                cloudStore = cloudStore || {};
+
+                // 1. Синхронизируем таймлайн (file_view)
                 var branchKey = getFileViewKey();
-                var cloudTimeline = gistCache[branchKey] || {};
-                var localTimeline = readLocalData();
+                var cloudTimeline = cloudStore[branchKey] || {};
+                var localTimeline = readStorage(branchKey, {});
+                var mergedTimeline = mergeTimelines(cloudTimeline, localTimeline);
 
-                var merged = mergeTimelines(cloudTimeline, localTimeline);
-                writeLocalData(merged);
+                // 2. Синхронизируем отметки онлайн-просмотров (online_view)
+                var cloudOnline = cloudStore.online_view || [];
+                var localOnline = readStorage('online_view', []);
+                var mergedOnline = mergeArrays(cloudOnline, localOnline);
 
-                log('Синхронизация (Pull) завершена для ' + branchKey + '. Записей: ' + Object.keys(merged).length);
-                if (!silent) {
-                    Lampa.Noty.show(PLUGIN_NAME + ': таймкоды синхронизированы');
-                }
-            });
-        });
-    }
+                // Применяем объединенные данные локально в Lampa:
+                Lampa.Storage.set(branchKey, mergedTimeline);
+                Lampa.Storage.set('online_view', mergedOnline);
 
-    /**
-     * PUSH: отправляем свежие локальные таймкоды в Gist
-     */
-    function syncPush() {
-        if (!token() || isSyncing) return;
-
-        var branchKey = getFileViewKey();
-        var localTimeline = readLocalData();
-        if (!localTimeline || Object.keys(localTimeline).length === 0) {
-            needPush = false;
-            return;
-        }
-
-        isSyncing = true;
-        ensureGist(function (err, id) {
-            if (err) {
-                isSyncing = false;
-                log('Push error (ensureGist): ' + err);
-                return;
-            }
-
-            gistRead(id, function (readErr, currentCloudStore) {
-                currentCloudStore = currentCloudStore || gistCache || {};
-
-                var currentBranchCloud = currentCloudStore[branchKey] || {};
-                var merged = mergeTimelines(currentBranchCloud, localTimeline);
-
-                currentCloudStore[branchKey] = merged;
-
-                gistWrite(id, currentCloudStore, function (writeErr) {
-                    isSyncing = false;
-                    if (writeErr) {
-                        log('Push error (write): ' + writeErr);
-                        return;
+                // Заставляем Lampa обновить полосы прогресса на экране:
+                try {
+                    if (Lampa.Timeline && typeof Lampa.Timeline.read === 'function') {
+                        Lampa.Timeline.read(); // Без true, чтобы Lampa вызвала событие обновления экрана
                     }
+                } catch (e) {}
 
-                    gistCache = currentCloudStore;
-                    needPush = false;
-                    log('Синхронизация (Push) завершена для ' + branchKey);
-                });
+                // Проверяем, есть ли новые данные для отправки в облако:
+                var cloudTimelineCount = Object.keys(cloudTimeline).length;
+                var mergedTimelineCount = Object.keys(mergedTimeline).length;
+                var cloudOnlineCount = cloudOnline.length;
+                var mergedOnlineCount = mergedOnline.length;
+
+                var needsCloudUpdate = (mergedTimelineCount !== cloudTimelineCount) ||
+                                      (mergedOnlineCount !== cloudOnlineCount) ||
+                                      (JSON.stringify(cloudTimeline) !== JSON.stringify(mergedTimeline));
+
+                if (needsCloudUpdate) {
+                    cloudStore[branchKey] = mergedTimeline;
+                    cloudStore.online_view = mergedOnline;
+
+                    gistWrite(id, cloudStore, function (writeErr) {
+                        isSyncing = false;
+                        if (writeErr) {
+                            log('Sync error (write): ' + writeErr);
+                        } else {
+                            log('Синхронизация завершена. Данные обновлены в облаке.');
+                        }
+                        if (!silent) {
+                            Lampa.Noty.show(PLUGIN_NAME + ': синхронизировано (' + mergedTimelineCount + ' видео)');
+                        }
+                    });
+                } else {
+                    isSyncing = false;
+                    log('Синхронизация завершена. Данные уже актуальны (' + mergedTimelineCount + ' видео).');
+                    if (!silent) {
+                        Lampa.Noty.show(PLUGIN_NAME + ': синхронизировано (' + mergedTimelineCount + ' видео)');
+                    }
+                }
             });
         });
     }
@@ -319,52 +312,42 @@
     // ── Слушатели событий Lampa ────────────────────────────────
 
     function bootstrap() {
-        // Когда Lampa сохраняет прогресс просмотра локально:
+        // Ловим закрытие плеера на НАСТОЯЩЕМ слушателе плеера (Lampa.Player.listener):
         try {
-            if (Lampa.Timeline && Lampa.Timeline.listener) {
-                Lampa.Timeline.listener.follow('update', function () {
-                    needPush = true;
+            if (Lampa.Player && Lampa.Player.listener) {
+                Lampa.Player.listener.follow('destroy', function () {
+                    log('Плеер закрыт. Запуск синхронизации...');
+                    setTimeout(function () {
+                        fullSync(true);
+                    }, 800);
                 });
             }
         } catch (e) {}
 
-        // При закрытии плеера: Lampa только что записала финальное время -> делаем Push
-        Lampa.Listener.follow('player', function (e) {
-            if (e.type === 'destroy') {
-                setTimeout(function () {
-                    syncPush();
-                }, 600);
-            }
-        });
-
-        // При смене пользователя/профиля: подтягиваем данные нового профиля
+        // При смене профиля — сразу полная синхронизация
         Lampa.Storage.listener.follow('change', function (e) {
             if (e.name === 'account' || e.name === 'account_use') {
-                log('Профиль изменен. Обновляем таймкоды...');
-                syncPull(true);
+                log('Сменился профиль. Синхронизируем...');
+                fullSync(true);
             }
         });
 
-        // Первый pull при старте приложения (тихий)
+        // Первая синхронизация при запуске Lampa
         setTimeout(function () {
-            syncPull(true);
+            fullSync(true);
         }, 1500);
 
-        // Периодический Push (только если были просмотры)
-        pushTimer = setInterval(function () {
-            if (needPush) syncPush();
-        }, PUSH_INTERVAL);
-
-        // Периодический Pull (чтобы подхватить если смотрели на другом ТВ)
-        pullTimer = setInterval(function () {
-            syncPull(true);
-        }, PULL_INTERVAL);
+        // Периодическая фоновая синхронизация каждые 2 минуты
+        clearInterval(syncTimer);
+        syncTimer = setInterval(function () {
+            fullSync(true);
+        }, SYNC_INTERVAL);
 
         if (typeof Lampa.SettingsApi !== 'undefined') {
             registerSettings();
         }
 
-        log('Плагин активирован. Ветка: ' + getFileViewKey());
+        log('Плагин активирован v' + VERSION);
     }
 
     // ── Меню настроек ──────────────────────────────────────────
@@ -387,12 +370,11 @@
             },
             field: {
                 name: 'GitHub Token (gist scope)',
-                description: 'Вставьте токен с галочкой "gist". На всех устройствах один токен!'
+                description: 'Один и тот же токен на всех ваших устройствах'
             },
             onChange: function () {
                 setCfg('gist_id', '');
-                gistCache = {};
-                syncPull(false);
+                fullSync(false);
             }
         });
 
@@ -404,10 +386,10 @@
             },
             field: {
                 name: 'Синхронизировать сейчас',
-                description: 'Нажмите для принудительного обмена данными с облаком'
+                description: 'Двусторонний обмен таймкодами с GitHub Gist'
             },
             onChange: function () {
-                syncPull(false);
+                fullSync(false);
             }
         });
 
@@ -422,11 +404,9 @@
             },
             field: {
                 name: 'Gist ID (автоматически)',
-                description: 'Заполняется сам. Очистите поле, если нужно пересоздать Gist.'
+                description: 'ID вашего хранилища. Очистите поле, если нужно пересоздать Gist.'
             },
-            onChange: function () {
-                gistCache = {};
-            }
+            onChange: function () {}
         });
     }
 
