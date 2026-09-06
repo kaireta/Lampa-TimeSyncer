@@ -1,30 +1,30 @@
 ﻿/**
  * ================================================================
- *  Lampa TimeSyncer v4.1 (Full 2-Way Sync) — синхронизация через GitHub Gist
+ *  Lampa TimeSyncer v4.3 — синхронизация через GitHub Gist
  * ================================================================
  *
- *  ИСПРАВЛЕНИЯ v4.1:
- *  1. Двусторонняя синхронизация (2-Way Sync): при синхронизации данные
- *     не только скачиваются, но и выгружают уже имеющуюся историю просмотров в Gist!
- *  2. Слушатель плеера переключен на Lampa.Player.listener (вместо Lampa.Listener),
- *     поэтому сохранение при выходе из плеера теперь РЕАЛЬНО срабатывает.
- *  3. Умное слияние (Merge): если метки времени равны или отсутствуют,
- *     выбирается максимальный прогресс просмотра, ничего не затирается.
- *  4. Синхронизирует и file_view (полоски прогресса/секунды), и online_view (просмотренные серии).
- *  5. Вызов Lampa.Timeline.read() без параметров вызывает событие state:changed,
- *     чтобы полоски на экране сразу перерисовались без перезапуска страницы.
+ *  ПАРАМЕТРЫ ОЧИСТКИ:
+ *  - Лимит размера: 950 КБ (~1 МБ) для быстрого прямого чтения без урезаний.
+ *  - Проверка: раз в 24 часа.
+ *  - При достижении лимита: удаляются 25% самых старых записей просмотров.
+ *  - ВАЖНО: Закладки (Избранное) хранятся в отдельной базе Lampa и НИКАК
+ *    не затрагиваются этой очисткой.
  * ================================================================
  */
 
 (function () {
     'use strict';
 
-    var VERSION     = '4.1.0';
+    var VERSION     = '4.3.0';
     var PLUGIN_NAME = 'TimeSyncer Native';
     var GIST_FILE   = 'lampa_timesync.json';
     var GIST_API    = 'https://api.github.com/gists';
 
-    var SYNC_INTERVAL = 2 * 60 * 1000; // Автоматическая проверка каждые 2 минуты
+    // 950 КБ — безопасный порог до 1 МБ (лимита inline-чтения GitHub)
+    var MAX_GIST_SIZE_BYTES = 950 * 1024;
+    var CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000; // Раз в сутки
+
+    var SYNC_INTERVAL = 2 * 60 * 1000; // Фоновая синхронизация каждые 2 минуты
     var syncTimer     = null;
     var isSyncing     = false;
 
@@ -74,11 +74,14 @@
         return val || def;
     }
 
-    /**
-     * Слияние двух таймлайнов:
-     * 1. Если есть метка updated — побеждает более поздняя.
-     * 2. Если метки равны или отсутствуют — побеждает наибольший процент просмотра.
-     */
+    function getByteSize(str) {
+        try {
+            return new Blob([str]).size;
+        } catch (e) {
+            return unescape(encodeURIComponent(str)).length;
+        }
+    }
+
     function mergeTimelines(a, b) {
         var res = {};
         var k;
@@ -115,9 +118,6 @@
         return res;
     }
 
-    /**
-     * Слияние массивов (например, online_view с просмотренными сериями)
-     */
     function mergeArrays(a, b) {
         a = Array.isArray(a) ? a : [];
         b = Array.isArray(b) ? b : [];
@@ -132,6 +132,55 @@
             if (!set[b[i]]) { set[b[i]] = true; result.push(b[i]); }
         }
         return result;
+    }
+
+    /**
+     * Автоочистка 25% самых старых просмотров при превышении 950 КБ.
+     * Затрагивает ТОЛЬКО историю просмотров (file_view). Закладки не трогает!
+     */
+    function checkAndPruneOldRecords(cloudStore) {
+        var jsonStr = JSON.stringify(cloudStore);
+        var currentBytes = getByteSize(jsonStr);
+
+        log('Размер файла в Gist: ' + Math.round(currentBytes / 1024) + ' КБ');
+
+        if (currentBytes < MAX_GIST_SIZE_BYTES) {
+            return false;
+        }
+
+        log('Файл достиг порога ' + Math.round(currentBytes / 1024) + ' КБ (~1 МБ). Очистка 25% старых просмотров...');
+
+        var changed = false;
+        for (var branch in cloudStore) {
+            if (!Object.prototype.hasOwnProperty.call(cloudStore, branch)) continue;
+            var data = cloudStore[branch];
+            if (typeof data !== 'object' || Array.isArray(data)) continue;
+
+            var keys = Object.keys(data);
+            if (keys.length > 50) {
+                // Сортировка от самых старых к новым по дате просмотра
+                keys.sort(function (a, b) {
+                    var tA = (data[a] && data[a].updated) ? data[a].updated : 0;
+                    var tB = (data[b] && data[b].updated) ? data[b].updated : 0;
+                    return tA - tB;
+                });
+
+                var toRemove = Math.ceil(keys.length * 0.25);
+                for (var i = 0; i < toRemove; i++) {
+                    delete data[keys[i]];
+                }
+                changed = true;
+                log('Ветвь ' + branch + ': удалено ' + toRemove + ' старых отметок просмотров.');
+            }
+        }
+
+        // Также подрезаем массив online_view если он слишком разросся
+        if (Array.isArray(cloudStore.online_view) && cloudStore.online_view.length > 2000) {
+            cloudStore.online_view = cloudStore.online_view.slice(-1500);
+            changed = true;
+        }
+
+        return changed;
     }
 
     // ── HTTP API Gist ──────────────────────────────────────────
@@ -169,7 +218,27 @@
             if (err) { callback(err); return; }
             try {
                 var file = data.files && data.files[GIST_FILE];
-                var content = file && file.content ? JSON.parse(file.content) : {};
+                if (!file) { callback(null, {}); return; }
+
+                // Если файл урезан (truncated), скачиваем напрямую по raw_url
+                if (file.truncated && file.raw_url) {
+                    log('Файл урезан API, загрузка через raw_url...');
+                    var rawXhr = new XMLHttpRequest();
+                    rawXhr.open('GET', file.raw_url, true);
+                    rawXhr.onreadystatechange = function () {
+                        if (rawXhr.readyState !== 4) return;
+                        try {
+                            callback(null, JSON.parse(rawXhr.responseText));
+                        } catch (e) {
+                            callback('Raw JSON parse error');
+                        }
+                    };
+                    rawXhr.onerror = function () { callback('Raw network error'); };
+                    rawXhr.send();
+                    return;
+                }
+
+                var content = file.content ? JSON.parse(file.content) : {};
                 callback(null, content);
             } catch (e) {
                 callback('Gist content parse error: ' + e.message);
@@ -227,7 +296,7 @@
         });
     }
 
-    // ── Полная двусторонняя синхронизация (2-Way Sync) ──────────
+    // ── Двусторонняя синхронизация + Ежедневная проверка ───────
 
     function fullSync(silent) {
         if (!token() || isSyncing) return;
@@ -262,24 +331,38 @@
                 var localOnline = readStorage('online_view', []);
                 var mergedOnline = mergeArrays(cloudOnline, localOnline);
 
-                // Применяем объединенные данные локально в Lampa:
+                // Применяем локально:
                 Lampa.Storage.set(branchKey, mergedTimeline);
                 Lampa.Storage.set('online_view', mergedOnline);
 
-                // Заставляем Lampa обновить полосы прогресса на экране:
                 try {
                     if (Lampa.Timeline && typeof Lampa.Timeline.read === 'function') {
-                        Lampa.Timeline.read(); // Без true, чтобы Lampa вызвала событие обновления экрана
+                        Lampa.Timeline.read();
                     }
                 } catch (e) {}
 
-                // Проверяем, есть ли новые данные для отправки в облако:
+                // 3. Ежедневная проверка размера файла (порог 950 КБ):
+                var lastCleanup = parseInt(cfg('last_cleanup_check', '0'), 10) || 0;
+                var now = Date.now();
+                var pruned = false;
+
+                if (now - lastCleanup > CLEANUP_INTERVAL_MS) {
+                    setCfg('last_cleanup_check', now);
+                    pruned = checkAndPruneOldRecords(cloudStore);
+                    if (pruned) {
+                        mergedTimeline = cloudStore[branchKey] || mergedTimeline;
+                        Lampa.Storage.set(branchKey, mergedTimeline);
+                    }
+                }
+
+                // 4. Проверяем изменения для выгрузки в Gist:
                 var cloudTimelineCount = Object.keys(cloudTimeline).length;
                 var mergedTimelineCount = Object.keys(mergedTimeline).length;
                 var cloudOnlineCount = cloudOnline.length;
                 var mergedOnlineCount = mergedOnline.length;
 
-                var needsCloudUpdate = (mergedTimelineCount !== cloudTimelineCount) ||
+                var needsCloudUpdate = pruned ||
+                                      (mergedTimelineCount !== cloudTimelineCount) ||
                                       (mergedOnlineCount !== cloudOnlineCount) ||
                                       (JSON.stringify(cloudTimeline) !== JSON.stringify(mergedTimeline));
 
@@ -292,7 +375,7 @@
                         if (writeErr) {
                             log('Sync error (write): ' + writeErr);
                         } else {
-                            log('Синхронизация завершена. Данные обновлены в облаке.');
+                            log('Синхронизация завершена. Облако обновлено.');
                         }
                         if (!silent) {
                             Lampa.Noty.show(PLUGIN_NAME + ': синхронизировано (' + mergedTimelineCount + ' видео)');
@@ -300,7 +383,7 @@
                     });
                 } else {
                     isSyncing = false;
-                    log('Синхронизация завершена. Данные уже актуальны (' + mergedTimelineCount + ' видео).');
+                    log('Синхронизация завершена. Актуально (' + mergedTimelineCount + ' видео).');
                     if (!silent) {
                         Lampa.Noty.show(PLUGIN_NAME + ': синхронизировано (' + mergedTimelineCount + ' видео)');
                     }
@@ -312,7 +395,7 @@
     // ── Слушатели событий Lampa ────────────────────────────────
 
     function bootstrap() {
-        // Ловим закрытие плеера на НАСТОЯЩЕМ слушателе плеера (Lampa.Player.listener):
+        // Ловим закрытие плеера:
         try {
             if (Lampa.Player && Lampa.Player.listener) {
                 Lampa.Player.listener.follow('destroy', function () {
@@ -324,7 +407,7 @@
             }
         } catch (e) {}
 
-        // При смене профиля — сразу полная синхронизация
+        // Смена профиля:
         Lampa.Storage.listener.follow('change', function (e) {
             if (e.name === 'account' || e.name === 'account_use') {
                 log('Сменился профиль. Синхронизируем...');
@@ -337,7 +420,7 @@
             fullSync(true);
         }, 1500);
 
-        // Периодическая фоновая синхронизация каждые 2 минуты
+        // Фоновая проверка каждые 2 минуты
         clearInterval(syncTimer);
         syncTimer = setInterval(function () {
             fullSync(true);
