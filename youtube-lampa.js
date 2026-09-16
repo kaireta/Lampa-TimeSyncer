@@ -217,7 +217,13 @@
             var self = this;
             var tabs = [{ id: 'trending', label: 'Тренды' }, { id: 'search', label: 'Поиск' }];
             if (isLoggedIn()) {
-                tabs.push({ id: 'subscriptions', label: 'Подписки' }, { id: 'history', label: 'История' }, { id: 'liked', label: 'Лайки' }, { id: 'playlists', label: 'Плейлисты' });
+                tabs.push(
+                    { id: 'subscriptions', label: 'Подписки' },
+                    { id: 'history',       label: 'История' },
+                    { id: 'liked',         label: 'Лайки' },
+                    { id: 'playlists',     label: 'Плейлисты' },
+                    { id: 'logout',        label: 'Выйти' }
+                );
             } else {
                 tabs.push({ id: 'login', label: 'Войти' });
             }
@@ -226,6 +232,13 @@
                 var el = $('<div class="yt-tab selector">' + t.label + '</div>');
                 if (t.id === self._tab) el.addClass('active');
                 el.on('hover:enter', function () {
+                    if (t.id === 'logout') {
+                        store('token', '');
+                        Lampa.Noty.show('Выход выполнен');
+                        self._buildTabs();
+                        self._loadTab('trending');
+                        return;
+                    }
                     self._dom.find('.yt-tab').removeClass('active');
                     el.addClass('active');
                     self._tab = t.id;
@@ -234,6 +247,7 @@
                 bar.append(el);
             });
             self._dom.empty().append(bar);
+
         },
 
         _loadTab: function (tab) {
@@ -323,37 +337,36 @@
 
     function initSettings() {
         if (!Lampa.SettingsApi) return;
-        var ytIcon = '<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M10 15l5.19-3L10 9v6zm11.56-7.83c.25.94.43 2.2.54 3.73L22 12l-.9 1.1c-.11 1.53-.29 2.79-.54 3.73-.23.86-.88 1.51-1.74 1.74-.94.25-3.3.43-5.82.43s-4.88-.18-5.82-.43c-.86-.23-1.51-.88-1.74-1.74C6.18 15.9 6 14.53 6 13l-.01-1 .01-1c.11-1.53.29-2.79.54-3.73C6.77 6.41 7.42 5.76 8.28 5.53 9.22 5.28 11.58 5.1 14.1 5.1s4.88.18 5.82.43c.86.23 1.51.88 1.64 1.64z"/></svg>';
-        Lampa.SettingsApi.addComponent({ component: 'yt_lampa', name: 'YouTube Plugin', icon: ytIcon });
+        try {
+            var ytIcon = '<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M10 15l5.19-3L10 9v6zm11.56-7.83c.25.94.43 2.2.54 3.73L22 12l-.9 1.1c-.11 1.53-.29 2.79-.54 3.73-.23.86-.88 1.51-1.74 1.74-.94.25-3.3.43-5.82.43s-4.88-.18-5.82-.43c-.86-.23-1.51-.88-1.74-1.74C6.18 15.9 6 14.53 6 13l-.01-1 .01-1c.11-1.53.29-2.79.54-3.73C6.77 6.41 7.42 5.76 8.28 5.53 9.22 5.28 11.58 5.1 14.1 5.1s4.88.18 5.82.43c.86.23 1.51.88 1.64 1.64z"/></svg>';
+            Lampa.SettingsApi.addComponent({ component: 'yt_lampa', name: 'YouTube Plugin', icon: ytIcon });
 
-        Lampa.SettingsApi.addParam({
-            component: 'yt_lampa',
-            param: { name: 'yt_client_id', type: 'input', default: '' },
-            field: { name: 'OAuth Client ID', description: 'Google Cloud OAuth 2.0 Client ID (*.apps.googleusercontent.com)' },
-            onChange: function (val) { store('client_id', val); }
-        });
-        Lampa.SettingsApi.addParam({
-            component: 'yt_lampa',
-            param: { name: 'yt_api_key', type: 'input', default: '' },
-            field: { name: 'Google API Key', description: 'YouTube Data API v3 ключ из Google Cloud Console (AIza...)' },
-            onChange: function (val) { store('api_key', val); }
-        });
-        var srvVals = {};
-        INVIDIOUS_LIST.forEach(function (s) { srvVals[s] = s.replace('https://', ''); });
-        Lampa.SettingsApi.addParam({
-            component: 'yt_lampa',
-            param: { name: 'yt_server', type: 'select', values: srvVals, default: DEFAULT_SERVER },
-            field: { name: 'Invidious сервер', description: 'Прокси для воспроизведения (без VPN в РФ)' },
-            onChange: function (val) { store('server', val); }
-        });
-        Lampa.SettingsApi.addParam({
-            component: 'yt_lampa',
-            param: { name: 'yt_logout', type: 'button', default: '' },
-            field: { name: 'Выйти из Google', description: 'Удалить сохранённый токен авторизации' },
-            onChange: function () { store('token', ''); Lampa.Noty.show('Выход выполнен'); }
-        });
+            Lampa.SettingsApi.addParam({
+                component: 'yt_lampa',
+                param: { name: 'yt_client_id', type: 'input', default: '' },
+                field: { name: 'OAuth Client ID' },
+                onChange: function (val) { store('client_id', val); }
+            });
+            Lampa.SettingsApi.addParam({
+                component: 'yt_lampa',
+                param: { name: 'yt_api_key', type: 'input', default: '' },
+                field: { name: 'Google API Key' },
+                onChange: function (val) { store('api_key', val); }
+            });
+            var srvVals = {};
+            INVIDIOUS_LIST.forEach(function (s) { srvVals[s] = s.replace('https://', ''); });
+            Lampa.SettingsApi.addParam({
+                component: 'yt_lampa',
+                param: { name: 'yt_server', type: 'select', values: srvVals, default: DEFAULT_SERVER },
+                field: { name: 'Invidious сервер' },
+                onChange: function (val) { store('server', val); }
+            });
+        } catch (e) {
+            console.warn('[YT Lampa] SettingsApi error:', e);
+        }
     }
     initSettings();
+
 
 
     function addMenuEntry() {
