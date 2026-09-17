@@ -1,7 +1,7 @@
-﻿(function () {
+(function () {
     'use strict';
 
-    var GUARD = '__youtube_lampa_v3';
+    var GUARD = '__youtube_lampa_v4';
     if (window[GUARD]) return;
     window[GUARD] = true;
 
@@ -368,37 +368,9 @@
     Lampa.Component.add('yt_lampa_player', YtLampaPlayer);
     Lampa.Component.add('yt_lampa_main', YtLampaMain);
 
-    function initSettings() {
-        if (!Lampa.SettingsApi) return;
-        try {
-            var ytIcon = '<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M10 15l5.19-3L10 9v6zm11.56-7.83c.25.94.43 2.2.54 3.73L22 12l-.9 1.1c-.11 1.53-.29 2.79-.54 3.73-.23.86-.88 1.51-1.74 1.74-.94.25-3.3.43-5.82.43s-4.88-.18-5.82-.43c-.86-.23-1.51-.88-1.74-1.74C6.18 15.9 6 14.53 6 13l-.01-1 .01-1c.11-1.53.29-2.79.54-3.73C6.77 6.41 7.42 5.76 8.28 5.53 9.22 5.28 11.58 5.1 14.1 5.1s4.88.18 5.82.43c.86.23 1.51.88 1.64 1.64z"/></svg>';
-            Lampa.SettingsApi.addComponent({ component: 'yt_lampa', name: 'YouTube Plugin', icon: ytIcon });
+    // Lampa's native SettingsApi is unstable in this fork. 
+    // Settings are handled exclusively via the internal "⚙" tab inside the YouTube component.
 
-            Lampa.SettingsApi.addParam({
-                component: 'yt_lampa',
-                param: { name: 'yt_client_id', type: 'input', default: '' },
-                field: { name: 'OAuth Client ID' },
-                onChange: function (val) { store('client_id', val); }
-            });
-            Lampa.SettingsApi.addParam({
-                component: 'yt_lampa',
-                param: { name: 'yt_api_key', type: 'input', default: '' },
-                field: { name: 'Google API Key' },
-                onChange: function (val) { store('api_key', val); }
-            });
-            var srvVals = {};
-            INVIDIOUS_LIST.forEach(function (s) { srvVals[s] = s.replace('https://', ''); });
-            Lampa.SettingsApi.addParam({
-                component: 'yt_lampa',
-                param: { name: 'yt_server', type: 'select', values: srvVals, default: DEFAULT_SERVER },
-                field: { name: 'Invidious сервер' },
-                onChange: function (val) { store('server', val); }
-            });
-        } catch (e) {
-            console.warn('[YT Lampa] SettingsApi error:', e);
-        }
-    }
-    initSettings();
 
     function addMenuEntry() {
         var icon = '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M10 15l5.19-3L10 9v6zm11.56-7.83c.25.94.43 2.2.54 3.73L22 12l-.9 1.1c-.11 1.53-.29 2.79-.54 3.73-.23.86-.88 1.51-1.74 1.74-.94.25-3.3.43-5.82.43s-4.88-.18-5.82-.43c-.86-.23-1.51-.88-1.74-1.74C6.18 15.9 6 14.53 6 13l-.01-1 .01-1c.11-1.53.29-2.79.54-3.73C6.77 6.41 7.42 5.76 8.28 5.53 9.22 5.28 11.58 5.1 14.1 5.1s4.88.18 5.82.43c.86.23 1.51.88 1.64 1.64z"/></svg>';
