@@ -1,7 +1,7 @@
-(function () {
+﻿(function () {
     'use strict';
 
-    var GUARD = '__youtube_lampa_v2';
+    var GUARD = '__youtube_lampa_v3';
     if (window[GUARD]) return;
     window[GUARD] = true;
 
@@ -102,7 +102,7 @@
     function normalizeInvVideo(v) {
         return {
             id: v.videoId, title: v.title,
-            thumb: v.videoThumbnails ? v.videoThumbnails[0].url : '',
+            thumb: v.videoThumbnails && v.videoThumbnails.length > 0 ? v.videoThumbnails[0].url : '',
             views: v.viewCount || 0, duration: v.lengthSeconds || 0,
             channel: v.author || '', type: 'video'
         };
@@ -134,7 +134,7 @@
                '<div class="card__age">' + sub + '</div></div>';
     }
 
-    var css = '.yt-wrap{padding:1em}.yt-tabs{display:flex;gap:.6em;margin-bottom:1em;flex-wrap:wrap}.yt-tab{padding:.4em 1em;border-radius:2em;background:rgba(255,255,255,.1);cursor:pointer;font-size:.9em}.yt-tab.active,.yt-tab.focus{background:#f00;color:#fff}.yt-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:1em}.yt-card{background:rgba(255,255,255,.06);border-radius:.5em;overflow:hidden;cursor:pointer;transition:transform .15s}.yt-card.focus,.yt-card:hover{transform:scale(1.04);outline:2px solid #f00}.yt-card img{width:100%;aspect-ratio:16/9;object-fit:cover;display:block}.yt-card .card__title{padding:.4em .5em;font-size:.85em;line-height:1.3}.yt-card .card__age{padding:0 .5em .4em;font-size:.75em;color:rgba(255,255,255,.5)}.yt-search-bar{display:flex;gap:.5em;margin-bottom:1em}.yt-search-bar input{flex:1;padding:.5em 1em;border-radius:2em;background:rgba(255,255,255,.1);border:none;color:#fff;font-size:1em;outline:none}.yt-search-bar input:focus{background:rgba(255,255,255,.2)}.yt-btn{padding:.4em 1.2em;border-radius:2em;background:#f00;color:#fff;border:none;cursor:pointer;font-size:.9em}.yt-btn.secondary{background:rgba(255,255,255,.15)}.yt-login-box{text-align:center;padding:3em 1em}.yt-login-box p{margin-bottom:1em;opacity:.7}.yt-status{opacity:.5;padding:2em;text-align:center}.yt-oauth-popup{position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.85);display:flex;flex-direction:column;align-items:center;justify-content:center}.yt-oauth-popup iframe{width:90vw;max-width:500px;height:80vh;border:none;border-radius:1em;background:#fff}.yt-oauth-popup .yt-btn{margin-top:1em}.yt-settings-form{max-width:500px;padding:.5em 0}.yt-field{margin-bottom:1.2em}.yt-field label{display:block;font-size:.85em;opacity:.6;margin-bottom:.4em}.yt-inp{width:100%;padding:.5em .8em;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);border-radius:.4em;color:#fff;font-size:.95em;outline:none;box-sizing:border-box}.yt-inp:focus{border-color:#f00;background:rgba(255,255,255,.15)}select.yt-inp option{background:#222;color:#fff}';
+    var css = '.yt-wrap{padding:1em;height:100%;box-sizing:border-box;overflow-y:auto}.yt-tabs{display:flex;gap:.6em;margin-bottom:1em;flex-wrap:wrap}.yt-tab{padding:.4em 1em;border-radius:2em;background:rgba(255,255,255,.1);cursor:pointer;font-size:.9em}.yt-tab.active,.yt-tab.focus{background:#f00;color:#fff}.yt-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:1em}.yt-card{background:rgba(255,255,255,.06);border-radius:.5em;overflow:hidden;cursor:pointer;transition:transform .15s}.yt-card.focus,.yt-card:hover{transform:scale(1.04);outline:2px solid #f00}.yt-card img{width:100%;aspect-ratio:16/9;object-fit:cover;display:block}.yt-card .card__title{padding:.4em .5em;font-size:.85em;line-height:1.3}.yt-card .card__age{padding:0 .5em .4em;font-size:.75em;color:rgba(255,255,255,.5)}.yt-search-bar{display:flex;gap:.5em;margin-bottom:1em}.yt-search-bar input{flex:1;padding:.5em 1em;border-radius:2em;background:rgba(255,255,255,.1);border:none;color:#fff;font-size:1em;outline:none}.yt-search-bar input:focus{background:rgba(255,255,255,.2)}.yt-btn{padding:.4em 1.2em;border-radius:2em;background:#f00;color:#fff;border:none;cursor:pointer;font-size:.9em}.yt-btn.secondary{background:rgba(255,255,255,.15)}.yt-login-box{text-align:center;padding:3em 1em}.yt-login-box p{margin-bottom:1em;opacity:.7}.yt-status{opacity:.5;padding:2em;text-align:center}.yt-oauth-popup{position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.85);display:flex;flex-direction:column;align-items:center;justify-content:center}.yt-oauth-popup iframe{width:90vw;max-width:500px;height:80vh;border:none;border-radius:1em;background:#fff}.yt-oauth-popup .yt-btn{margin-top:1em}.yt-settings-form{max-width:500px;padding:.5em 0}.yt-field{margin-bottom:1.2em}.yt-field label{display:block;font-size:.85em;opacity:.6;margin-bottom:.4em}.yt-inp{width:100%;padding:.5em .8em;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);border-radius:.4em;color:#fff;font-size:.95em;outline:none;box-sizing:border-box}.yt-inp:focus{border-color:#f00;background:rgba(255,255,255,.15)}select.yt-inp option{background:#222;color:#fff}';
 
     var styleEl = document.createElement('style');
     styleEl.textContent = css;
@@ -182,11 +182,14 @@
         closeBtn.onclick = function () { clearInterval(poll); document.body.removeChild(popup); };
     }
 
-    Lampa.Component.add('yt_lampa_player', {
-        create: function () {
-            var self = this;
-            var params = this.activity.get(0);
-            self.render().html('<div class="yt-status">Загрузка...</div>');
+    function YtLampaPlayer(object) {
+        var self = this;
+        this.activity = object;
+
+        this.create = function () {
+            var params = self.activity.get(0) || {};
+            self._dom = $('<div class="yt-wrap"></div>');
+            self._dom.html('<div class="yt-status">Загрузка...</div>');
             invVideo(params.video_id, function (data) {
                 var hls = data.hlsUrl ? (getServer() + data.hlsUrl) : '';
                 if (!hls) {
@@ -194,28 +197,29 @@
                     fmts.sort(function (a, b) { return (b.resolution || '') > (a.resolution || '') ? 1 : -1; });
                     if (fmts.length) hls = fmts[0].url;
                 }
-                if (!hls) { self.render().html('<div class="yt-status">Не удалось получить ссылку</div>'); return; }
-                Lampa.Player.play({ title: data.title || '', url: hls, poster: (data.videoThumbnails && data.videoThumbnails[0]) ? data.videoThumbnails[0].url : '' });
+                if (!hls) { self._dom.html('<div class="yt-status">Не удалось получить ссылку</div>'); return; }
+                Lampa.Player.play({ title: data.title || '', url: hls, poster: (data.videoThumbnails && data.videoThumbnails.length) ? data.videoThumbnails[0].url : '' });
                 self.activity.back();
-            }, function (e) { self.render().html('<div class="yt-status">Ошибка: ' + e + '</div>'); });
-        },
-        render:   function () { return this._dom || (this._dom = $('<div class="yt-wrap"></div>')); },
-        activity: null, back: function () {}, destroy: function () {}
-    });
+            }, function (e) { self._dom.html('<div class="yt-status">Ошибка: ' + e + '</div>'); });
+        };
 
-    Lampa.Component.add('yt_lampa_main', {
-        _tab: 'trending',
+        this.render = function () { return self._dom; };
+        this.back = function () {};
+        this.destroy = function () {};
+    }
 
-        create: function () {
-            var self = this;
+    function YtLampaMain(object) {
+        var self = this;
+        this.activity = object;
+        this._tab = 'trending';
+
+        this.create = function () {
             self._dom = $('<div class="yt-wrap"></div>');
             self._buildTabs();
             self._loadTab('trending');
-            return self._dom;
-        },
+        };
 
-        _buildTabs: function () {
-            var self = this;
+        this._buildTabs = function () {
             var tabs = [{ id: 'trending', label: 'Тренды' }, { id: 'search', label: 'Поиск' }];
             if (isLoggedIn()) {
                 tabs.push(
@@ -234,7 +238,7 @@
             tabs.forEach(function (t) {
                 var el = $('<div class="yt-tab selector">' + t.label + '</div>');
                 if (t.id === self._tab) el.addClass('active');
-                el.on('hover:enter', function () {
+                el.on('hover:enter click', function () {
                     if (t.id === 'logout') {
                         store('token', '');
                         Lampa.Noty.show('Выход выполнен');
@@ -249,12 +253,11 @@
                 });
                 bar.append(el);
             });
-            self._dom.empty().append(bar);
+            self._dom.find('.yt-tabs').remove();
+            self._dom.prepend(bar);
+        };
 
-        },
-
-        _loadTab: function (tab) {
-            var self = this;
+        this._loadTab = function (tab) {
             var content = $('<div class="yt-content"></div>');
             self._dom.find('.yt-content').remove();
             self._dom.append(content);
@@ -335,11 +338,9 @@
                     Lampa.Noty.show('Настройки сохранены');
                 });
             }
+        };
 
-        },
-
-        _renderGrid: function (container, items, isPlaylist) {
-            var self = this;
+        this._renderGrid = function (container, items, isPlaylist) {
             container.find('.yt-grid,.yt-status').remove();
             if (!items || !items.length) { container.append('<div class="yt-status">Ничего не найдено</div>'); return; }
             var grid = $('<div class="yt-grid"></div>');
@@ -357,13 +358,47 @@
                 grid.append(card);
             });
             container.append(grid);
-        },
+        };
 
-        render:   function () { return this._dom || (this._dom = $('<div class="yt-wrap"></div>')); },
-        activity: null, back: function () {}, destroy: function () { if (this._dom) this._dom.remove(); }
-    });
+        this.render = function () { return self._dom; };
+        this.back = function () {};
+        this.destroy = function () { if (self._dom) self._dom.remove(); };
+    }
 
-    // Settings are handled via the built-in YouTube tab (see 'settings' tab in _buildTabs)
+    Lampa.Component.add('yt_lampa_player', YtLampaPlayer);
+    Lampa.Component.add('yt_lampa_main', YtLampaMain);
+
+    function initSettings() {
+        if (!Lampa.SettingsApi) return;
+        try {
+            var ytIcon = '<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M10 15l5.19-3L10 9v6zm11.56-7.83c.25.94.43 2.2.54 3.73L22 12l-.9 1.1c-.11 1.53-.29 2.79-.54 3.73-.23.86-.88 1.51-1.74 1.74-.94.25-3.3.43-5.82.43s-4.88-.18-5.82-.43c-.86-.23-1.51-.88-1.74-1.74C6.18 15.9 6 14.53 6 13l-.01-1 .01-1c.11-1.53.29-2.79.54-3.73C6.77 6.41 7.42 5.76 8.28 5.53 9.22 5.28 11.58 5.1 14.1 5.1s4.88.18 5.82.43c.86.23 1.51.88 1.64 1.64z"/></svg>';
+            Lampa.SettingsApi.addComponent({ component: 'yt_lampa', name: 'YouTube Plugin', icon: ytIcon });
+
+            Lampa.SettingsApi.addParam({
+                component: 'yt_lampa',
+                param: { name: 'yt_client_id', type: 'input', default: '' },
+                field: { name: 'OAuth Client ID' },
+                onChange: function (val) { store('client_id', val); }
+            });
+            Lampa.SettingsApi.addParam({
+                component: 'yt_lampa',
+                param: { name: 'yt_api_key', type: 'input', default: '' },
+                field: { name: 'Google API Key' },
+                onChange: function (val) { store('api_key', val); }
+            });
+            var srvVals = {};
+            INVIDIOUS_LIST.forEach(function (s) { srvVals[s] = s.replace('https://', ''); });
+            Lampa.SettingsApi.addParam({
+                component: 'yt_lampa',
+                param: { name: 'yt_server', type: 'select', values: srvVals, default: DEFAULT_SERVER },
+                field: { name: 'Invidious сервер' },
+                onChange: function (val) { store('server', val); }
+            });
+        } catch (e) {
+            console.warn('[YT Lampa] SettingsApi error:', e);
+        }
+    }
+    initSettings();
 
     function addMenuEntry() {
         var icon = '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M10 15l5.19-3L10 9v6zm11.56-7.83c.25.94.43 2.2.54 3.73L22 12l-.9 1.1c-.11 1.53-.29 2.79-.54 3.73-.23.86-.88 1.51-1.74 1.74-.94.25-3.3.43-5.82.43s-4.88-.18-5.82-.43c-.86-.23-1.51-.88-1.74-1.74C6.18 15.9 6 14.53 6 13l-.01-1 .01-1c.11-1.53.29-2.79.54-3.73C6.77 6.41 7.42 5.76 8.28 5.53 9.22 5.28 11.58 5.1 14.1 5.1s4.88.18 5.82.43c.86.23 1.51.88 1.64 1.64z"/></svg>';
