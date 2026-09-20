@@ -1,7 +1,7 @@
 (function () {
     'use strict';
 
-    var plugin_name = 'rus_movie_clean_v2';
+    var plugin_name = 'rus_movie_clean_v3';
     if (window[plugin_name + '_loaded']) return;
     window[plugin_name + '_loaded'] = true;
 
@@ -30,7 +30,6 @@
               '.rus-card img { width: 100%; height: auto; aspect-ratio: 16/9; object-fit: cover; display: block; } ' +
               '.rus-card__title { padding: 0.8em 0.5em; font-size: 1.1em; color: #fff; flex-grow: 1; display: flex; align-items: center; justify-content: center; } ' +
               '.rus-card.focus { transform: scale(1.05); outline: 3px solid #fff; background: rgba(255,255,255,0.15); }';
-
     
     var style = document.createElement('style');
     style.innerHTML = css;
@@ -79,7 +78,7 @@
 
     function addMenuEntry() {
         var icon = '<svg xmlns="http://www.w3.org/2000/svg" width="1.2em" height="1.2em" viewBox="0 0 48 48"><g fill="none" stroke="currentColor" stroke-width="4"><path stroke-linejoin="round" d="M24 44c11.046 0 20-8.954 20-20S35.046 4 24 4S4 12.954 4 24s8.954 20 20 20Z"/><path stroke-linejoin="round" d="M24 18a3 3 0 1 0 0-6a3 3 0 0 0 0 6Zm0 18a3 3 0 1 0 0-6a3 3 0 0 0 0 6Zm-9-9a3 3 0 1 0 0-6a3 3 0 0 0 0 6Zm18 0a3 3 0 1 0 0-6a3 3 0 0 0 0 6Z"/><path stroke-linecap="round" d="M24 44h20"/></g></svg>';
-        var li = $('<li class="menu__item selector" data-action="rus_movie"><div class="menu__ico">' + icon + '</div><div class="menu__text">Сервисы</div></li>');
+        var li = $('<li class="menu__item selector" data-action="rus_movie"><div class="menu__ico">' + icon + '</div><div class="menu__text">Сервисы (v3)</div></li>');
         li.on('hover:enter click', function () { Lampa.Activity.push({ url: '', title: 'Сервисы', component: 'rus_movie_clean' }); });
         
         function inject() {
