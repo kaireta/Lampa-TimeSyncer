@@ -1,4 +1,4 @@
-(function () {
+﻿(function () {
     'use strict';
 
     var plugin_name = 'rus_movie_clean';
@@ -15,7 +15,6 @@
         { title: 'Netflix', img: 'https://cdn.jsdelivr.net/gh/kaireta/Lampa-TimeSyncer@main/netflix.jpg', request: 'discover/tv?with_networks=213&sort_by=first_air_date.desc&air_date.lte=' + today },
         { title: 'Start', img: 'https://bylampa.github.io/img/start.jpg', request: 'discover/tv?with_networks=3923&sort_by=first_air_date.desc&air_date.lte=' + today },
         { title: 'Premier', img: 'https://bylampa.github.io/img/premier.jpg', request: 'discover/tv?with_networks=2859&sort_by=first_air_date.desc&air_date.lte=' + today },
-
         { title: 'KION', img: 'https://bylampa.github.io/img/kion.jpg', request: 'discover/tv?with_networks=4085&sort_by=first_air_date.desc&air_date.lte=' + today },
         { title: 'ИВИ', img: 'https://bylampa.github.io/img/ivi.jpg', request: 'discover/tv?with_networks=3871&sort_by=first_air_date.desc&air_date.lte=' + today },
         { title: 'Okko', img: 'https://bylampa.github.io/img/okko.jpg', request: 'discover/tv?with_networks=2493&sort_by=first_air_date.desc&air_date.lte=' + today },
@@ -25,21 +24,29 @@
         { title: 'ТНТ', img: 'https://bylampa.github.io/img/tnt.jpg', request: 'discover/tv?with_networks=1191&sort_by=first_air_date.desc&air_date.lte=' + today }
     ];
 
+    var css = '.rus-wrap { padding: 2em; height: 100%; box-sizing: border-box; overflow-y: auto; } ' +
+              '.rus-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1.5em; padding-bottom: 3em; } ' +
+              '.rus-card { background: rgba(255,255,255,0.06); border-radius: 0.6em; overflow: hidden; cursor: pointer; transition: transform 0.2s, background 0.2s; display: flex; flex-direction: column; text-align: center; } ' +
+              '.rus-card img { width: 100%; aspect-ratio: 16/9; object-fit: cover; display: block; } ' +
+              '.rus-card__title { padding: 0.8em 0.5em; font-size: 1.1em; color: #fff; } ' +
+              '.rus-card.focus { transform: scale(1.05); outline: 3px solid #fff; background: rgba(255,255,255,0.15); }';
+    
+    var style = document.createElement('style');
+    style.innerHTML = css;
+    document.head.appendChild(style);
+
     function RusMovieComponent(object) {
         var self = this;
         this.activity = object;
 
         this.create = function () {
-            self._dom = $('<div class="rus-movie-wrap mapping--grid"></div>');
-            self._dom.css({ padding: '1em', height: '100%', boxSizing: 'border-box', overflowY: 'auto' });
-            
+            self._dom = $('<div class="rus-wrap"></div>');
             var grid = $('<div class="rus-grid"></div>');
-            grid.css({ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1em' });
 
             CATEGORIES.forEach(function (cat) {
-                var card = $('<div class="card selector" style="background:rgba(255,255,255,0.05);border-radius:.5em;overflow:hidden;cursor:pointer;transition:transform 0.15s;text-align:center;">' +
-                             '<div class="card__img"><img src="' + cat.img + '" style="width:100%;aspect-ratio:16/9;object-fit:cover;display:block;" loading="lazy"/></div>' +
-                             '<div class="card__title" style="padding:0.5em;font-size:0.9em;">' + cat.title + '</div>' +
+                var card = $('<div class="rus-card selector">' +
+                             '<img src="' + cat.img + '" loading="lazy"/>' +
+                             '<div class="rus-card__title">' + cat.title + '</div>' +
                              '</div>');
                 
                 card.on('hover:enter click', function () {
@@ -52,9 +59,6 @@
                     });
                 });
                 
-                card.on('hover:focus', function() { card.css('transform', 'scale(1.04)'); card.css('outline', '2px solid #fff'); });
-                card.on('hover:empty', function() { card.css('transform', 'scale(1)'); card.css('outline', 'none'); });
-
                 grid.append(card);
             });
 
@@ -78,7 +82,6 @@
         li.on('hover:enter click', function () { Lampa.Activity.push({ url: '', title: 'Сервисы', component: 'rus_movie_clean' }); });
         
         function inject() {
-
             var nav = document.querySelector('.menu ul, .menu__list, .navigation__items');
             if (nav) $(nav).append(li);
         }
