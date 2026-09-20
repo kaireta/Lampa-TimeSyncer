@@ -1,7 +1,7 @@
 (function () {
     'use strict';
 
-    var GUARD = '__youtube_lampa_v4';
+    var GUARD = '__youtube_lampa_v5';
     if (window[GUARD]) return;
     window[GUARD] = true;
 
@@ -204,9 +204,14 @@
         };
 
         this.render = function () { return self._dom; };
+        this.start = function () {};
+        this.pause = function () {};
+        this.stop = function () {};
+        this.empty = function () {};
         this.back = function () {};
         this.destroy = function () {};
     }
+
 
     function YtLampaMain(object) {
         var self = this;
@@ -361,9 +366,14 @@
         };
 
         this.render = function () { return self._dom; };
+        this.start = function () {};
+        this.pause = function () {};
+        this.stop = function () {};
+        this.empty = function () {};
         this.back = function () {};
         this.destroy = function () { if (self._dom) self._dom.remove(); };
     }
+
 
     Lampa.Component.add('yt_lampa_player', YtLampaPlayer);
     Lampa.Component.add('yt_lampa_main', YtLampaMain);
