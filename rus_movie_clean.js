@@ -1,4 +1,4 @@
-﻿(function () {
+(function () {
     'use strict';
 
     var plugin_name = 'rus_movie_clean';
@@ -11,7 +11,7 @@
         { title: 'Русские фильмы', img: 'https://bylampa.github.io/img/rus_movie.jpg', request: 'discover/movie?vote_average.gte=5&vote_average.lte=9.5&with_original_language=ru&sort_by=primary_release_date.desc&primary_release_date.lte=' + today },
         { title: 'Русские сериалы', img: 'https://bylampa.github.io/img/rus_tv.jpg', request: 'discover/tv?sort_by=first_air_date.desc&with_original_language=ru&air_date.lte=' + today },
         { title: 'Русские мультфильмы', img: 'https://bylampa.github.io/img/rus_mult.jpg', request: 'discover/movie?vote_average.gte=5&vote_average.lte=9.5&with_genres=16&with_original_language=ru&sort_by=primary_release_date.desc&primary_release_date.lte=' + today },
-        { title: 'Ток-шоу и Реалити', img: 'https://cdn.jsdelivr.net/gh/kaireta/Lampa-TimeSyncer@main/talk_shows.jpg', request: 'discover/tv?with_original_language=ru&with_genres=10767,10764&sort_by=popularity.desc' },
+        { title: 'Ток-шоу и Реалити', img: 'https://cdn.jsdelivr.net/gh/kaireta/Lampa-TimeSyncer@main/talk_shows.jpg', request: 'discover/tv?with_original_language=ru&with_genres=10767|10764&sort_by=popularity.desc' },
         { title: 'Netflix', img: 'https://cdn.jsdelivr.net/gh/kaireta/Lampa-TimeSyncer@main/netflix.jpg', request: 'discover/tv?with_networks=213&sort_by=first_air_date.desc&air_date.lte=' + today },
         { title: 'Start', img: 'https://bylampa.github.io/img/start.jpg', request: 'discover/tv?with_networks=3923&sort_by=first_air_date.desc&air_date.lte=' + today },
         { title: 'Premier', img: 'https://bylampa.github.io/img/premier.jpg', request: 'discover/tv?with_networks=2859&sort_by=first_air_date.desc&air_date.lte=' + today },
