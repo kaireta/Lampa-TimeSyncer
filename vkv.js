@@ -1,7 +1,7 @@
 (function () {
     'use strict';
 
-    var plugin_name = 'vk_video_balancer_v2';
+    var plugin_name = 'vk_video_balancer_v3';
     if (window[plugin_name + '_loaded']) return;
     window[plugin_name + '_loaded'] = true;
 
@@ -79,14 +79,13 @@
     }
 
     function VKVideoComponent(object) {
-        var network = new Lampa.Reguest();
         var scroll = new Lampa.Scroll({mask:true, over:true});
         var filter = new Lampa.Filter(object);
-        var files = new Lampa.Files(object);
         
         var self = this;
         this.activity = object;
         this.results = [];
+        this.m = object.movie || {};
 
         this.create = function () {
             this.build();
@@ -94,7 +93,7 @@
         };
 
         this.build = function () {
-            Lampa.Background.change(object.movie.backdrop_path || object.movie.poster_path);
+            Lampa.Background.change(this.m.backdrop_path || this.m.poster_path);
             Lampa.Template.add('vk_video_main', '<div class="vk-video-main"></div>');
             this.html = Lampa.Template.get('vk_video_main');
             
@@ -108,27 +107,34 @@
             this.html.append(filter.render());
             
             this.html.append(scroll.render());
-            scroll.append(files.render());
         };
 
         this.search = function (customQuery) {
-            files.clear();
-            var q = customQuery || (object.movie.title || object.movie.name) + ' ' + (object.movie.release_date || object.movie.first_air_date || '').substring(0, 4);
-            Lampa.Noty.show('Поиск в VK: ' + q);
+            scroll.clear();
+            var title = this.m.title || this.m.name || '';
+            var year = (this.m.release_date || this.m.first_air_date || '').substring(0, 4);
+            var q = customQuery || (title + ' ' + year).trim();
             
-            parseVK(q, function(results) {
-                self.results = results;
-                if (results.length > 0) {
-                    self.append(results);
-                } else {
-                    files.append('<div class="empty__title">Ничего не найдено</div>');
-                }
-            }, function() {
-                files.append('<div class="empty__title">Ошибка загрузки VK</div>');
-            });
+            if (q) {
+                Lampa.Noty.show('Поиск в VK: ' + q);
+                
+                parseVK(q, function(results) {
+                    self.results = results;
+                    if (results.length > 0) {
+                        self.append(results);
+                    } else {
+                        scroll.append($('<div class="empty__title">Ничего не найдено</div>'));
+                    }
+                }, function() {
+                    scroll.append($('<div class="empty__title">Ошибка загрузки VK</div>'));
+                });
+            } else {
+                scroll.append($('<div class="empty__title">Неизвестное название</div>'));
+            }
         };
 
         this.append = function(items) {
+            var itemsHtml = [];
             items.forEach(function (element) {
                 var itemHtml = Lampa.Template.get('file', {
                     title: element.title,
@@ -161,8 +167,12 @@
                     });
                 });
                 
-                files.append(itemHtml);
+                scroll.append(itemHtml);
+                itemsHtml.push(itemHtml);
             });
+            
+            // Set up navigation between standard file items
+            this.itemsHtml = itemsHtml;
             self.start();
         };
 
@@ -171,7 +181,7 @@
             Lampa.Controller.add('content', { 
                 toggle: function () { 
                     Lampa.Controller.collectionSet(self.html); 
-                    Lampa.Controller.collectionFocus(self.results.length ? files.render() : filter.render(), self.html); 
+                    Lampa.Controller.collectionFocus(self.results.length ? scroll.render() : filter.render(), self.html); 
                 }, 
                 left: function () { if (Navigator.canmove('left')) Navigator.move('left'); else Lampa.Controller.toggle('menu'); }, 
                 right: function () { Navigator.move('right'); }, 
@@ -188,18 +198,23 @@
         this.destroy = function () { 
             if (this.html) this.html.remove(); 
             scroll.destroy(); 
-            files.destroy();
             filter.destroy();
         };
     }
 
     Lampa.Component.add('vk_video_balancer', VKVideoComponent);
 
-    var last_movie = null;
-    // 1. ИНЖЕКЦИЯ НА ГЛАВНЫЙ ЭКРАН (если нет агрегатора балансеров)
+    // 1. ИНЖЕКЦИЯ НА ГЛАВНЫЙ ЭКРАН
     Lampa.Listener.follow('full:ready', function(e) {
         if (e.type !== 'movie' && e.type !== 'tv') return;
-        last_movie = e.object;
+        
+        var safe_movie = {
+            title: e.object.title || e.object.name || '',
+            original_title: e.object.original_title || e.object.original_name || '',
+            release_date: e.object.release_date || e.object.first_air_date || '',
+            backdrop_path: e.object.backdrop_path || '',
+            poster_path: e.object.poster_path || ''
+        };
         
         var btn = $('<div class="full-start__button selector" data-action="vk_video"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M2.067 11.234c0-4.062 0-6.094 1.258-7.359C4.582 2.61 6.6 2.61 10.64 2.61h2.72c4.04 0 6.06 0 7.316 1.265 1.259 1.265 1.259 3.297 1.259 7.359v1.532c0 4.062 0 6.094-1.259 7.359-1.257 1.265-3.277 1.265-7.317 1.265h-2.72c-4.04 0-6.059 0-7.316-1.265-1.258-1.265-1.258-3.297-1.258-7.359v-1.532Zm13.88 1.488a.333.333 0 0 0 0-.444l-5.698-4.985a.333.333 0 0 0-.527.222v9.97a.333.333 0 0 0 .527.222l5.698-4.985Z"/></svg><span>VK</span></div>');
         btn.on('hover:enter click', function() {
@@ -207,14 +222,12 @@
                 url: '',
                 title: 'VK Видео',
                 component: 'vk_video_balancer',
-                movie: e.object
+                movie: safe_movie
             });
         });
         
         var parent = e.html.find('.full-start__buttons').eq(0);
         if (parent.length) {
-            // Вставляем сразу после первой кнопки (Обычно это кнопка Смотреть)
-            // Чтобы не улететь в скрытое меню "..."
             var first = parent.find('.full-start__button').eq(0);
             if(first.length) {
                 btn.insertAfter(first);
@@ -226,7 +239,7 @@
         }
     });
 
-    // 2. ИНЖЕКЦИЯ В СПИСОК ИСТОЧНИКОВ (ДЛЯ LUMIO, ALPAC и прочих)
+    // 2. ИНЖЕКЦИЯ В СПИСОК ИСТОЧНИКОВ (ДЛЯ LUMIO, ALPAC)
     var original_select_show = Lampa.Select.show;
     Lampa.Select.show = function (params) {
         var is_source_menu = false;
@@ -241,12 +254,11 @@
         }
 
         if (is_source_menu) {
-            // Проверяем, нет ли уже VK Видео
             var hasVK = params.items.some(function(i) { return i.vk_video; });
             if (!hasVK) {
                 params.items.push({
                     title: 'VK Видео',
-                    subtitle: 'VK Search v2',
+                    subtitle: 'VK Search v3',
                     icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M2.067 11.234c0-4.062 0-6.094 1.258-7.359C4.582 2.61 6.6 2.61 10.64 2.61h2.72c4.04 0 6.06 0 7.316 1.265 1.259 1.265 1.259 3.297 1.259 7.359v1.532c0 4.062 0 6.094-1.259 7.359-1.257 1.265-3.277 1.265-7.317 1.265h-2.72c-4.04 0-6.059 0-7.316-1.265-1.258-1.265-1.258-3.297-1.258-7.359v-1.532Zm13.88 1.488a.333.333 0 0 0 0-.444l-5.698-4.985a.333.333 0 0 0-.527.222v9.97a.333.333 0 0 0 .527.222l5.698-4.985Z"/></svg>',
                     vk_video: true
                 });
@@ -254,11 +266,20 @@
                 var original_onSelect = params.onSelect;
                 params.onSelect = function (a) {
                     if (a.vk_video) {
+                        var active = Lampa.Activity.active();
+                        var m = active.movie || (active.activity && active.activity.movie) || {};
+                        var safe_movie = {
+                            title: m.title || m.name || '',
+                            original_title: m.original_title || m.original_name || '',
+                            release_date: m.release_date || m.first_air_date || '',
+                            backdrop_path: m.backdrop_path || '',
+                            poster_path: m.poster_path || ''
+                        };
                         Lampa.Activity.push({
                             url: '',
                             title: 'VK Видео',
                             component: 'vk_video_balancer',
-                            movie: last_movie || {}
+                            movie: safe_movie
                         });
                     } else if (original_onSelect) {
                         original_onSelect(a);
