@@ -1,7 +1,7 @@
-(function () {
+﻿(function () {
     'use strict';
 
-    var plugin_name = 'vk_video_balancer';
+    var plugin_name = 'vk_video_balancer_v2';
     if (window[plugin_name + '_loaded']) return;
     window[plugin_name + '_loaded'] = true;
 
@@ -20,7 +20,7 @@
                         var oid = item[0];
                         var vid = item[1];
                         var thumb = item[2];
-                        var title = item[3].replace(/<\/?[^>]+(>|$)/g, ""); // strip html
+                        var title = item[3].replace(/<\/?[^>]+(>|$)/g, ""); 
                         
                         var hash = '';
                         var durationStr = '';
@@ -96,7 +96,6 @@
             Lampa.Template.add('vk_video_main', '<div class="vk-video-main"></div>');
             this.html = Lampa.Template.get('vk_video_main');
             
-            // Setup filter
             filter.onSearch = function(value) {
                 self.search(value);
             };
@@ -106,7 +105,6 @@
             filter.render().find('.filter--search').show();
             this.html.append(filter.render());
             
-            // Setup files (list) container inside scroll
             this.html.append(scroll.render());
             scroll.append(files.render());
         };
@@ -195,9 +193,10 @@
 
     Lampa.Component.add('vk_video_balancer', VKVideoComponent);
 
+    // 1. ИНЖЕКЦИЯ НА ГЛАВНЫЙ ЭКРАН (если нет агрегатора балансеров)
     Lampa.Listener.follow('full:ready', function(e) {
         if (e.type !== 'movie' && e.type !== 'tv') return;
-        var btn = $('<div class="full-start__button selector" data-action="vk_video"><div>VK Видео</div></div>');
+        var btn = <div class="full-start__button selector" data-action="vk_video"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M2.067 11.234c0-4.062 0-6.094 1.258-7.359C4.582 2.61 6.6 2.61 10.64 2.61h2.72c4.04 0 6.06 0 7.316 1.265 1.259 1.265 1.259 3.297 1.259 7.359v1.532c0 4.062 0 6.094-1.259 7.359-1.257 1.265-3.277 1.265-7.317 1.265h-2.72c-4.04 0-6.059 0-7.316-1.265-1.258-1.265-1.258-3.297-1.258-7.359v-1.532Zm13.88 1.488a.333.333 0 0 0 0-.444l-5.698-4.985a.333.333 0 0 0-.527.222v9.97a.333.333 0 0 0 .527.222l5.698-4.985Z"/></svg><span>VK</span></div>;
         btn.on('hover:enter click', function() {
             Lampa.Activity.push({
                 url: '',
@@ -209,10 +208,62 @@
         
         var parent = e.html.find('.full-start__buttons').eq(0);
         if (parent.length) {
-            parent.append(btn);
+            // Вставляем сразу после первой кнопки (Обычно это кнопка Смотреть)
+            // Чтобы не улететь в скрытое меню "..."
+            var first = parent.find('.full-start__button').eq(0);
+            if(first.length) {
+                btn.insertAfter(first);
+            } else {
+                parent.append(btn);
+            }
         } else {
             e.html.find('.view--actions').append(btn);
         }
     });
+
+    // 2. ИНЖЕКЦИЯ В СПИСОК ИСТОЧНИКОВ (ДЛЯ LUMIO, ALPAC и прочих)
+    var original_select_show = Lampa.Select.show;
+    Lampa.Select.show = function (params) {
+        var is_source_menu = false;
+        if (params && (params.title === 'Источник' || params.title === 'Source')) {
+            is_source_menu = true;
+        }
+        if (params && params.items && params.items.some(function(i) {
+            var t = (i.title || '').toLowerCase();
+            return t.indexOf('lumio') !== -1 || t.indexOf('alpac') !== -1 || t.indexOf('cinema') !== -1 || t.indexOf('онлайн') !== -1;
+        })) {
+            is_source_menu = true;
+        }
+
+        if (is_source_menu) {
+            // Проверяем, нет ли уже VK Видео
+            var hasVK = params.items.some(function(i) { return i.vk_video; });
+            if (!hasVK) {
+                params.items.push({
+                    title: 'VK Видео',
+                    subtitle: 'VK Search v2',
+                    icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M2.067 11.234c0-4.062 0-6.094 1.258-7.359C4.582 2.61 6.6 2.61 10.64 2.61h2.72c4.04 0 6.06 0 7.316 1.265 1.259 1.265 1.259 3.297 1.259 7.359v1.532c0 4.062 0 6.094-1.259 7.359-1.257 1.265-3.277 1.265-7.317 1.265h-2.72c-4.04 0-6.059 0-7.316-1.265-1.258-1.265-1.258-3.297-1.258-7.359v-1.532Zm13.88 1.488a.333.333 0 0 0 0-.444l-5.698-4.985a.333.333 0 0 0-.527.222v9.97a.333.333 0 0 0 .527.222l5.698-4.985Z"/></svg>',
+                    vk_video: true
+                });
+                
+                var original_onSelect = params.onSelect;
+                params.onSelect = function (a) {
+                    if (a.vk_video) {
+                        var active = Lampa.Activity.active();
+                        var movie = active.movie || (active.activity && active.activity.movie) || (active.activity && active.activity.object) || {};
+                        Lampa.Activity.push({
+                            url: '',
+                            title: 'VK Видео',
+                            component: 'vk_video_balancer',
+                            movie: movie
+                        });
+                    } else if (original_onSelect) {
+                        original_onSelect(a);
+                    }
+                };
+            }
+        }
+        return original_select_show.apply(this, arguments);
+    };
 
 })();
