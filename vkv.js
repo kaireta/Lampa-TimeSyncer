@@ -6,8 +6,9 @@
     window[plugin_name + '_loaded'] = true;
 
     function parseVK(query, onsuccess, onerror) {
+        var network = new Lampa.Reguest();
         var url = 'https://api.allorigins.win/raw?url=' + encodeURIComponent('https://vk.com/al_video.php?act=search_video&al=1&q=' + encodeURIComponent(query));
-        Lampa.network.request(url, function(res) {
+        network.request(url, function(res) {
             try {
                 var jsonStr = res;
                 var start = jsonStr.indexOf('{"payload"');
@@ -62,8 +63,9 @@
     }
 
     function extractHLS(iframeUrl, onsuccess, onerror) {
+        var network = new Lampa.Reguest();
         var url = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(iframeUrl);
-        Lampa.network.request(url, function(res) {
+        network.request(url, function(res) {
             var m = res.match(/"hls":"([^"]+)"/);
             if (m && m[1]) {
                 var hls = m[1].replace(/\\\//g, '/');
