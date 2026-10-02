@@ -1,5 +1,4 @@
 export default async function handler(req, res) {
-    // CORS preflight
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', '*');
@@ -11,17 +10,13 @@ export default async function handler(req, res) {
     try {
         const response = await fetch(decodeURIComponent(url), {
             headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-                'Accept-Language': 'ru-RU,ru;q=0.9,en;q=0.8',
-                'Accept-Encoding': 'gzip, deflate, br',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+                'Accept': 'application/json, text/javascript, */*; q=0.01',
+                'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7',
+                'X-Requested-With': 'XMLHttpRequest',
+                'Referer': 'https://vk.com/video',
+                'Origin': 'https://vk.com',
                 'Connection': 'keep-alive',
-                'Upgrade-Insecure-Requests': '1',
-                'Sec-Fetch-Dest': 'document',
-                'Sec-Fetch-Mode': 'navigate',
-                'Sec-Fetch-Site': 'same-origin',
-                'Sec-Fetch-User': '?1',
-                'Cache-Control': 'max-age=0',
             },
             redirect: 'follow',
         });
