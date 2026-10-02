@@ -5,7 +5,7 @@
     if (window[plugin_name + '_loaded']) return;
     window[plugin_name + '_loaded'] = true;
 
-    var PROXY = 'https://lampa-time-syncer.vercel.app/api/proxy?url=';
+    var PROXY = 'https://vkvideo.appleid000936.workers.dev/?url=';
 
     function parseVK(query, onsuccess, onerror) {
         var network = new Lampa.Reguest();
@@ -30,7 +30,7 @@
                         var durationStr = '';
                         
                         item.forEach(function(val) {
-                            if (typeof val === 'string' && /^[a-f0-9]{18}$/i.test(val)) {
+                            if (typeof val === 'string' && /^[a-f0-9]{12,24}$/i.test(val) && val.length > hash.length) {
                                 hash = val;
                             }
                         });
@@ -111,7 +111,7 @@
             this.html.append(filter.render());
             
             var searchBtn = $('<div class="full-start__button selector" style="margin: 1em; display: inline-block; background: rgba(255,255,255,0.1); padding: 10px 20px; border-radius: 5px;">Найти вручную</div>');
-            searchBtn.on('hover:enter click', function() {
+            searchBtn.on('hover:enter', function() {
                 Lampa.Input.edit({
                     title: 'Поиск VK Видео',
                     value: '',
@@ -167,7 +167,7 @@
                     'background-size': 'cover'
                 });
 
-                itemHtml.on('hover:enter click', function () {
+                itemHtml.on('hover:enter', function () {
                     Lampa.Noty.show('Извлекаем HLS...');
                     extractHLS(element.url, function(hlsUrl) {
                         var video = {
@@ -238,7 +238,7 @@
         };
         
         var btn = $('<div class="full-start__button selector" data-action="vk_video"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M2.067 11.234c0-4.062 0-6.094 1.258-7.359C4.582 2.61 6.6 2.61 10.64 2.61h2.72c4.04 0 6.06 0 7.316 1.265 1.259 1.265 1.259 3.297 1.259 7.359v1.532c0 4.062 0 6.094-1.259 7.359-1.257 1.265-3.277 1.265-7.317 1.265h-2.72c-4.04 0-6.059 0-7.316-1.265-1.258-1.265-1.258-3.297-1.258-7.359v-1.532Zm13.88 1.488a.333.333 0 0 0 0-.444l-5.698-4.985a.333.333 0 0 0-.527.222v9.97a.333.333 0 0 0 .527.222l5.698-4.985Z"/></svg><span>VK</span></div>');
-        btn.on('hover:enter click', function() {
+        btn.on('hover:enter', function() {
             Lampa.Activity.push({
                 url: '',
                 title: 'VK Видео',
@@ -361,4 +361,5 @@
     };
 
 })();
+
 
