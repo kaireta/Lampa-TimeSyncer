@@ -11,13 +11,22 @@
     style.textContent = '.vk-video-main { height: 100%; display: flex; flex-direction: column; overflow: hidden; }';
     document.head.appendChild(style);
 
-    // ── Хелпер: fetch с таймаутом ────────────────────────────────────────────
+    // ── Хелпер: fetch с таймаутом + smart charset ────────────────────────────
     function fetchText(url, timeoutMs, onSuccess, onError) {
         var controller = new AbortController();
         var timer = setTimeout(function () { controller.abort(); }, timeoutMs || 30000);
         fetch(url, { signal: controller.signal })
-            .then(function (r) { return r.text(); })
-            .then(function (text) { clearTimeout(timer); onSuccess(text); })
+            .then(function (r) { return r.arrayBuffer(); })
+            .then(function (buf) {
+                clearTimeout(timer);
+                // Try UTF-8 first; if too many replacement chars → re-decode as Windows-1251
+                var utf8 = new TextDecoder('utf-8').decode(buf);
+                var badCount = (utf8.match(/\uFFFD/g) || []).length;
+                var text = (badCount > 5)
+                    ? new TextDecoder('windows-1251').decode(buf)
+                    : utf8;
+                onSuccess(text);
+            })
             .catch(function (e) {
                 clearTimeout(timer);
                 console.error('[VK v13] fetch error:', e.name, e.message, 'url:', url);
@@ -109,13 +118,15 @@
     function detectEpisode(title) {
         var t = title || '';
         var patterns = [
-            /(?:серия|сер\.?)\s+(\d{1,4})/i,          // "серия 3", "сер. 03"
-            /(\d{1,4})\s*(?:-я|-ая)?\s*(?:серия|сер)/i,// "3 серия", "3-я серия"
-            /s\d+\s*e(\d+)/i,                           // "S01E03", "s1e3"
-            /(?:эпизод|episode|ep\.?)\s*(\d{1,4})/i,   // "Эпизод 3", "ep. 3"
-            /(?:часть|ч\.?|part)\s+(\d{1,4})/i,        // "часть 3", "ч. 3"
-            /^\[?(\d{1,4})\]?\s*[-.\s]/,               // "03. Название", "[3] ..."
-            /\((\d{1,4})\s*(?:серия|эпизод)\)/i,       // "(3 серия)"
+            /(?:серия|сер\.?)\s+(\d{1,4})/i,
+            /(\d{1,4})\s*(?:-я|-ая)?\s*(?:серия|сер)/i,
+            /s\d+\s*e(\d+)/i,
+            /(?:эпизод|episode|ep\.?)\s*(\d{1,4})/i,
+            /(?:часть|ч\.?|part)\s+(\d{1,4})/i,
+            /(?:выпуск|вып\.?|release)\s*[№#]?\s*(\d{1,4})/i,
+            /[№#]\s*(\d{1,4})/,
+            /^\[?(\d{1,4})\]?\s*[-.\s]/,
+            /\((\d{1,4})\s*(?:серия|эпизод|выпуск)\)/i,
         ];
         for (var i = 0; i < patterns.length; i++) {
             var m = t.match(patterns[i]);
